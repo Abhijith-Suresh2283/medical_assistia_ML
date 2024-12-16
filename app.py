@@ -93,7 +93,7 @@ elif choice == "Pneumonia":
     uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png","jpeg"])
     if uploaded_file is not None:
         img = Image.open(uploaded_file).convert('L')
-        st.image(img, caption="Uploaded Image", use_column_width=True)
+        st.image(img, caption="Uploaded Image", use_container_width=True)
         img = img.resize((36, 36))
         img_array = np.asarray(img).reshape((1, 36, 36, 1)) / 255.0
         model = load_model("models/pneumonia.h5")
