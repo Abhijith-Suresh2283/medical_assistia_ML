@@ -88,18 +88,25 @@ elif choice == "Malaria":
         except Exception as e:
             st.error(f"Error: {e}")
 
-elif choice == "Pneumonia":
-    st.subheader("Pneumonia Detection")
-    uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
-    if uploaded_file is not None:
-        img = Image.open(uploaded_file)
-        st.image(img, caption="Uploaded Image", use_container_width=True)
-        try:
-            model = load_model("models/pneumonia.h5")
-            label = pneumonia_predict(img, model)
-            st.success(f"Prediction: {label}")
-        except Exception as e:
-            st.error(f"Error: {e}")
+uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
+if uploaded_file is not None:
+    img = Image.open(uploaded_file).convert('L')  # Convert to grayscale
+    st.image(img, caption="Uploaded Image")  # Removed use_container_width
+    
+    # Resize to the expected input size
+    img = img.resize((36, 36))  # Resizing the image to 36x36 pixels
+    
+    # Convert to a NumPy array and reshape
+    img_array = np.asarray(img).reshape((1, 36, 36, 1)) / 255.0  # Normalize and reshape
+    
+    # Load the trained model
+    try:
+        model = load_model("models/pneumonia.h5")
+        pred = np.argmax(model.predict(img_array)[0])
+        st.success(f"Prediction: {'Pneumonia Detected' if pred == 1 else 'Normal'}")
+    except Exception as e:
+        st.error(f"Model Error: {e}")
+
 
 # Sidebar Info
 st.sidebar.info("Use this application for educational purposes only. Always consult a medical professional for accurate diagnosis.")
