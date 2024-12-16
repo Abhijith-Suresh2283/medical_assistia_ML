@@ -1,108 +1,89 @@
-from flask import Flask, render_template, request, flash, redirect,url_for
+import streamlit as st
 import tensorflow as tf
 import pickle
 import numpy as np
 from PIL import Image
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
-import os
 
-
-app = Flask(__name__)
-
-
-def model_predict(img_path, model):
-    img = image.load_img(img_path, target_size=(150, 150))
-    img_array = image.img_to_array(img)
+# Utility Functions
+def model_predict(img, model):
+    img = img.resize((150, 150))
+    img_array = np.asarray(img)
     img_array = np.expand_dims(img_array, axis=0)
     img_array = img_array / 255.0
-    print("Image shape:", img_array.shape)
+    st.write("Image shape:", img_array.shape)
     prediction = model.predict(img_array)
     predicted_class = (prediction[0][0] > 0.5).astype("int32")
     label = 'Uninfected' if predicted_class == 1 else 'Infected'
-    
     return label, prediction[0][0]
 
-def predict(values, dic):
-    if len(values) == 8:
-        model = pickle.load(open('models/diabetes.pkl','rb'))
-        values = np.asarray(values)
-        return model.predict(values.reshape(1, -1))[0]
-    elif len(values) == 26:
-        model = pickle.load(open('models/breast_cancer.pkl','rb'))
-        values = np.asarray(values)
-        return model.predict(values.reshape(1, -1))[0]
-    elif len(values) == 10:
-        model = pickle.load(open('models/liver.pkl','rb'))
-        values = np.asarray(values)
-        return model.predict(values.reshape(1, -1))[0]
+def predict(values, model_path):
+    model = pickle.load(open(model_path, 'rb'))
+    values = np.asarray(values)
+    return model.predict(values.reshape(1, -1))[0]
 
-@app.route("/")
-def home():
-    return render_template('home.html')
+# Streamlit App
+st.title("Medical Prediction Application")
 
-@app.route("/diabetes", methods=['GET', 'POST'])
-def diabetesPage():
-    return render_template('diabetes.html')
+# Sidebar Navigation
+menu = ["Home", "Liver", "Pneumonia"]
+choice = st.sidebar.selectbox("Navigation", menu)
 
-@app.route("/cancer", methods=['GET', 'POST'])
-def cancerPage():
-    return render_template('breast_cancer.html')
+# Pages
+if choice == "Home":
+    st.subheader("Welcome to the Medical Prediction Application")
+    st.write("Select a disease from the sidebar to make predictions.")
 
-@app.route("/heart", methods=['GET', 'POST'])
-def heartPage():
-    return render_template('heart.html')
+elif choice == "Diabetes":
+    st.subheader("Diabetes Prediction")
+    with st.form("diabetes_form"):
+        values = [st.number_input(f"Enter Value {i+1}", value=0.0) for i in range(8)]
+        submitted = st.form_submit_button("Predict")
+        if submitted:
+            pred = predict(values, 'models/diabetes.pkl')
+            st.success(f"Prediction: {'Diabetic' if pred == 1 else 'Non-Diabetic'}")
 
-@app.route("/kidney", methods=['GET', 'POST'])
-def kidneyPage():
-    return render_template('kidney.html')
+elif choice == "Breast Cancer":
+    st.subheader("Breast Cancer Prediction")
+    with st.form("cancer_form"):
+        values = [st.number_input(f"Enter Value {i+1}", value=0.0) for i in range(26)]
+        submitted = st.form_submit_button("Predict")
+        if submitted:
+            pred = predict(values, 'models/breast_cancer.pkl')
+            st.success(f"Prediction: {'Malignant' if pred == 1 else 'Benign'}")
 
-@app.route("/liver", methods=['GET', 'POST'])
-def liverPage():
-    return render_template('liver.html')
+elif choice == "Liver":
+    st.subheader("Liver Disease Prediction")
+    with st.form("liver_form"):
+        values = [st.number_input(f"Enter Value {i+1}", value=0.0) for i in range(10)]
+        submitted = st.form_submit_button("Predict")
+        if submitted:
+            pred = predict(values, 'models/liver.pkl')
+            st.success(f"Prediction: {'Positive' if pred == 1 else 'Negative'}")
 
-@app.route("/malaria", methods=['GET', 'POST'])
-def malariaPage():
-    return render_template('malaria.html')
+elif choice == "Malaria":
+    st.subheader("Malaria Detection")
+    uploaded_file = st.file_uploader("Upload a Cell Image", type=["jpg", "png"])
+    if uploaded_file is not None:
+        img = Image.open(uploaded_file)
+        st.image(img, caption="Uploaded Image", use_column_width=True)
+        model = load_model("models/malaria.h5")
+        label, confidence = model_predict(img, model)
+        st.success(f"Prediction: {label} with confidence {confidence:.2f}")
 
-@app.route("/pneumonia", methods=['GET', 'POST'])
-def pneumoniaPage():
-    return render_template('pneumonia.html')
+elif choice == "Pneumonia":
+    st.subheader("Pneumonia Detection")
+    uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png","jpeg"])
+    if uploaded_file is not None:
+        img = Image.open(uploaded_file).convert('L')
+        st.image(img, caption="Uploaded Image", use_column_width=True)
+        img = img.resize((36, 36))
+        img_array = np.asarray(img).reshape((1, 36, 36, 1)) / 255.0
+        model = load_model("models/pneumonia.h5")
+        pred = np.argmax(model.predict(img_array)[0])
+        st.success(f"Prediction: {'Pneumonia Detected' if pred == 1 else 'Normal'}")
 
-@app.route("/predict", methods = ['POST', 'GET'])
-def predictPage():
-    try:
-        if request.method == 'POST':
-            to_predict_dict = request.form.to_dict()
-            to_predict_list = list(map(float, list(to_predict_dict.values())))
-            print("Form Data Received:", to_predict_dict)
-            print("List of Values:", to_predict_list)
-            pred = predict(to_predict_list, to_predict_dict)
-            print("Prediction Result:", pred)
-    except Exception as e:
-        print("Error:", e)
-        message = "Please enter valid Data"
-        return render_template("home.html", message = message)
+# Add additional pages for heart and kidney prediction similar to the above.
 
-    return render_template('predict.html', pred = pred)
-
-
-@app.route("/pneumoniapredict", methods = ['POST', 'GET'])
-def pneumoniapredictPage():
-    if request.method == 'POST':
-        try:
-            if 'image' in request.files:
-                img = Image.open(request.files['image']).convert('L')
-                img = img.resize((36,36))
-                img = np.asarray(img)
-                img = img.reshape((1,36,36,1))
-                img = img / 255.0
-                model = load_model("models/pneumonia.h5")
-                pred = np.argmax(model.predict(img)[0])
-        except:
-            message = "Please upload an Image"
-            return render_template('pneumonia.html', message = message)
-    return render_template('pneumonia_predict.html', pred = pred)
-
-if __name__ == '__main__':
-	app.run(debug = False)
+st.sidebar.info("Use this application for educational purposes only. Always consult a medical professional for accurate diagnosis.")
